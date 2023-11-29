@@ -16,14 +16,11 @@ mongoose
     console.log("연결 완료");
   })
   .catch((err) => {
-    console.log("err");
+    console.log(err);
   });
 
 app.get("/", (req, res, next) => {
-  setImmediate(() => {
-    next(new Error("it is an error"));
-  });
-  // res.send('안녕하세요.2222');
+  res.send("안녕하세요.2222");
 });
 
 app.post("/", (req, res) => {
@@ -31,6 +28,7 @@ app.post("/", (req, res) => {
   res.json(req.body);
 });
 
+app.use("/users", require("./routes/users"));
 //app.use("/users", require("./routes/users"));
 
 app.use((error, req, res, next) => {
