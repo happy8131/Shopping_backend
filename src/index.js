@@ -32,7 +32,7 @@ app.use("/users", require("./routes/users"));
 //app.use("/users", require("./routes/users"));
 
 app.use((error, req, res, next) => {
-  res.status(err.status || 500);
+  res.status(error.status || 500);
   res.send(error.message || "서버에서 에러가 났습니다.");
 });
 
