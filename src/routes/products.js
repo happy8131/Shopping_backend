@@ -23,17 +23,28 @@ router.post("/image", auth, (req, res) => {
   });
 });
 
-// router.get("/", async (req, res) => {
-//   try {
-//     const products = await Product.find().populate("writer");
+router.get("/:id", async (req, res, next) => {
+  const type = req.query.type;
+  let productIds = req.params.id;
 
-//     return res.status(200).json({
-//       products,
-//     });
-//   } catch (err) {
-//     next(err);
-//   }
-// });
+  if (type === "array") {
+    let ids = productIds.split(",");
+    productIds = ids.map((item) => {
+      return item;
+    });
+  }
+
+  try {
+    //productId를 이용해서 DB에서 productId와 같은 상품을 가져온다
+    const product = await Product.find({ _id: { $in: productIds } }).populate(
+      "writer"
+    );
+
+    return res.status(200).send(product);
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.get("/", async (req, res) => {
   const order = req.query.order ? req.query.order : "desc";
