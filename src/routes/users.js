@@ -3,6 +3,10 @@ const User = require("../models/User");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
 const auth = require("../middleware/auth");
+const Product = require("../models/Product");
+const Payment = require("../models/Payment");
+const async = require("async");
+const crypto = require("crypto");
 
 router.get("/auth", auth, (req, res) => {
   return res.json({
@@ -89,7 +93,7 @@ router.post("/cart", auth, async (req, res, next) => {
 
       return res.status(201).send(user.cart);
     }
-    //상품이 이미 있지 않을 때
+    //상품이 있지 않을 때
     else {
       const user = await User.findOneAndUpdate(
         { _id: req.user._id },
@@ -110,6 +114,95 @@ router.post("/cart", auth, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+router.delete("/cart", auth, async (req, res, next) => {
+  try {
+    // 먼저 cart안에 지우려고 한 상품을 지워주기
+    const userInfo = await User.findOneAndUpdate(
+      { _id: req.user._id },
+      {
+        $pull: { cart: { id: req.query.productId } },
+      },
+      { new: true }
+    );
+
+    const cart = userInfo.cart;
+    const array = cart.map((item) => {
+      return item.id;
+    });
+
+    const productInfo = await Product.find({ _id: { $in: array } }).populate(
+      "writer"
+    );
+
+    return res.json({
+      productInfo,
+      cart,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/payment", auth, async (req, res) => {
+  // User 콜렉션 안에 History 필드 안에 간단한 결제 정보 넣어주기
+  let history = [];
+  let transactionData = {};
+
+  req.body.cartDetail.forEach((item) => {
+    history.push({
+      dateOfPurchase: new Date().toISOString(),
+      name: item.title,
+      id: item._id,
+      price: item.price,
+      quantity: item.quantity,
+      paymentId: crypto.randomUUID(),
+    });
+  });
+
+  //Payment 콜렉션 안에 자세한  결제 정보들 넣어주기
+
+  transactionData.user = {
+    id: req.user._id,
+    name: req.user.name,
+    email: req.user.email,
+  };
+
+  transactionData.product = history;
+
+  //user Collection
+  await User.findOneAndUpdate(
+    {
+      _id: req.user._id,
+    },
+    { $push: { history: { $each: history } }, $set: { cart: [] } }
+  );
+
+  //payment collection
+  const payment = new Payment(transactionData);
+  const paymentDocs = await payment.save();
+
+  let products = [];
+  paymentDocs.product.forEach((item) => {
+    products.push({ id: item.id, quantity: item.quantity });
+  });
+
+  async.eachSeries(
+    products,
+    async (item) => {
+      await Product.updateOne(
+        {
+          _id: item.id,
+        },
+        { $inc: { sold: item.quantity } }
+      );
+    },
+    (err) => {
+      if (err) return res.status(500).send(err);
+      return res.sendStatus(200);
+    }
+  );
 });
 
 module.exports = router;
