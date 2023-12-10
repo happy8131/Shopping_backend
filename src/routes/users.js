@@ -54,13 +54,55 @@ router.post("/login", async (req, res, next) => {
     };
     // 토큰을 생성
     const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: "1h",
+      expiresIn: "5s",
     });
 
-    return res.json({ user, accessToken });
+    const refreshToken = jwt.sign(payload, process.env.REFRESH_SECRET, {
+      algorithm: "HS256",
+      expiresIn: "14d",
+    });
+
+    return res.json({ user, accessToken, refreshToken });
   } catch (err) {
     next(err);
   }
+});
+
+router.post("/refresh", (req, res, next) => {
+  const token = jwt.verify(req.body.refreshToken, process.env.REFRESH_SECRET);
+
+  if (!token)
+    return res.json({
+      data: null,
+      message: "invalid refresh token, please log in again",
+    });
+
+  const { userId: _id } = token;
+
+  User.findOne({ _id }).then((user) => {
+    if (!user) {
+      console.log(user);
+      return res.json({
+        user: null,
+        message: "refresh token has been tempered",
+      });
+    }
+
+    const payload = {
+      _id,
+    };
+    const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: "5s",
+    });
+    const refreshToken = jwt.sign(payload, process.env.JWT_SECRET, {
+      algorithm: "HS256",
+      expiresIn: "14d",
+    });
+
+    return res.json({ user, accessToken, refreshToken });
+    //  console.log(newAccessToken);
+    //   console.log(data.dataValues);
+  });
 });
 
 router.post("/logout", auth, async (req, res, next) => {
